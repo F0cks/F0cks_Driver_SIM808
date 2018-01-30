@@ -3,6 +3,23 @@
 int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTypeDef config)
 {
 	int8_t error = 0;
+	uint8_t i = 0;
+	char *p;
+
+	/* Get UART Circular Buffer data from user */
+	handler->uartCircularBuffer     = config.uartCircularBuffer;
+	handler->uartCircularBufferSize = config.uartCircularBufferSize;
+
+	/* Use private pointer to read UART data */
+	handler->privateCircularBufferP = handler->uartCircularBuffer;
+	/* Clean and prepare circular buffer */
+	p = config.uartCircularBuffer;
+	for(i=0; i<handler->uartCircularBufferSize; i++ )
+	{
+		*p = '\200';
+		p++;
+	}
+
 
 	return error;
 }

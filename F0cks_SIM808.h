@@ -5,6 +5,8 @@
 
 typedef struct
 {
+	char *  uartCircularBuffer;
+	uint8_t uartCircularBufferSize;
 
 }SIM808_ConfigurationTypeDef;
 
@@ -13,6 +15,10 @@ typedef struct
   */
 typedef struct
 {
+	char *  uartCircularBuffer;
+	uint8_t uartCircularBufferSize;
+
+	char *  privateCircularBufferP;
 
 }SIM808_HandleTypeDef;
 
