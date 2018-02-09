@@ -11,6 +11,19 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 	handler->uartCircularBuffer     = config.uartCircularBuffer;
 	handler->uartCircularBufferSize = config.uartCircularBufferSize;
 
+	/* Get pin and apn */
+	while( (*config.pinCode != '\0') && (i < PIN_SIZE))
+	{
+		handler->pinCode[i] = *config.pinCode;
+		i++; config.pinCode++;
+	}
+	i = 0;
+	while( (*config.apn != '\0') && (i < APN_SIZE) )
+	{
+		handler->apn[i] = *config.apn;
+		i++; config.apn++;
+	}
+
 	/* Use private pointer to read UART data */
 	handler->privateCircularBufferP = handler->uartCircularBuffer;
 	/* Clean and prepare circular buffer */
@@ -180,5 +193,39 @@ int8_t F0cks_SIM808_Check_Ack(SIM808_HandleTypeDef *handler)
 	}
 	/* No ACK received */
 	return -1;
+}
+
+int8_t F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler)
+{
+	/* Set PIN code */
+	F0cks_SIM808_UART_Send("AT+CPIN=\"");
+	F0cks_SIM808_UART_Send(handler->pinCode);
+	F0cks_SIM808_UART_Send("\"\n\r");
+	if( F0cks_SIM808_Check_Ack(handler) != 1 )
+	{
+		return -1;
+	}
+	while( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "SMS Ready") != 1 )
+	{
+		F0cks_SIM808_Read_Circular_Buffer(handler);
+	}
+
+	/* SMS Format */
+	F0cks_SIM808_UART_Send("AT+CMGF=1\n\r");
+	if( F0cks_SIM808_Check_Ack(handler) != 1 )
+	{
+		return -2;
+	}
+	F0cks_SIM808_UART_Send("AT+CSCS=\"GSM\"\n\r");
+	if( F0cks_SIM808_Check_Ack(handler) != 1 )
+	{
+		return -3;
+	}
+
+	/* Set white list */
+	F0cks_SIM808_UART_Send("AT+CWHITELIST=1\n\r");
+	while( F0cks_SIM808_Check_Ack(handler) != 1 );
+
+	return 1;
 }
 

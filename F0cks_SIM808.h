@@ -4,11 +4,16 @@
 #include "stdint.h"
 
 #define STRING_BUFFER_SIZE 100
+#define PIN_SIZE             6
+#define APN_SIZE            15
 
 typedef struct
 {
-	uint8_t *  uartCircularBuffer;
-	uint8_t uartCircularBufferSize;
+	uint8_t *uartCircularBuffer;
+	uint8_t  uartCircularBufferSize;
+
+	char *apn;
+	char *pinCode;
 
 }SIM808_ConfigurationTypeDef;
 
@@ -17,11 +22,14 @@ typedef struct
   */
 typedef struct
 {
-	uint8_t *  uartCircularBuffer;
-	uint8_t uartCircularBufferSize;
+	uint8_t *uartCircularBuffer;
+	uint8_t  uartCircularBufferSize;
 
 	uint8_t *privateCircularBufferP;
 	char     privateStringBuffer[STRING_BUFFER_SIZE];
+
+	char apn[APN_SIZE];
+	char pinCode[PIN_SIZE];
 
 }SIM808_HandleTypeDef;
 
@@ -31,6 +39,7 @@ void F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
 int8_t F0cks_SIM808_Check_Ack(SIM808_HandleTypeDef *handler);
+int8_t F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);
