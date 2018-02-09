@@ -30,6 +30,7 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler);
 void F0cks_SIM808_Power_OFF(void);
 int8_t F0cks_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
+int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);

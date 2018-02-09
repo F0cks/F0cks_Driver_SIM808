@@ -46,10 +46,7 @@ void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler)
 	F0cks_SIM808_UART_Send("AT\n\r");// Get first dummy answer
 	F0cks_Delay_ms(2000);
 	F0cks_SIM808_UART_Send("AT\n\r");
-	while(1)
-	{
-		F0cks_Read_Circular_Buffer(handler);
-	}
+	F0cks_SIM808_Compare_Strings("OK\r", "OK\n\r");
 
 }
 
@@ -63,7 +60,7 @@ void F0cks_SIM808_Power_OFF()
 }
 
 /* Read Circular buffer */
-int8_t F0cks_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
+int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 {
 	uint8_t timeout = 0;
 	uint8_t *p = handler->privateStringBuffer;
@@ -111,5 +108,25 @@ int8_t F0cks_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 
 	/* Timeout: No new string */
 	return 0;
+}
+
+/* Compare 2 strings */
+int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2)
+{
+	char *s1 = str1;
+	char *s2 = str2;
+
+	/* While string is not fully parsed  */
+	while( (*s1 != '\0') && (*s2 != '\0') )
+	{
+		/* If char are not the same */
+		if( *s1 != *s2 )
+		{
+			return 0;
+		}
+		s1++; s2++;
+	}
+	/* Strings are the same */
+	return 1;
 }
 
