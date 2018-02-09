@@ -20,9 +20,8 @@ typedef struct
 	uint8_t *  uartCircularBuffer;
 	uint8_t uartCircularBufferSize;
 
-	uint8_t *  privateCircularBufferP;
-	char       privateStringBuffer[STRING_BUFFER_SIZE];
-	int8_t  ack;
+	uint8_t *privateCircularBufferP;
+	char     privateStringBuffer[STRING_BUFFER_SIZE];
 
 }SIM808_HandleTypeDef;
 

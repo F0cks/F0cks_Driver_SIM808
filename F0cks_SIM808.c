@@ -7,8 +7,6 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 	uint8_t i = 0;
 	uint8_t *p;
 
-	handler->ack = 0;
-
 	/* Get UART Circular Buffer data from user */
 	handler->uartCircularBuffer     = config.uartCircularBuffer;
 	handler->uartCircularBufferSize = config.uartCircularBufferSize;
@@ -16,13 +14,12 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 	/* Use private pointer to read UART data */
 	handler->privateCircularBufferP = handler->uartCircularBuffer;
 	/* Clean and prepare circular buffer */
-	p = config.uartCircularBuffer;
+	p = handler->uartCircularBuffer;
 	for(i=0; i<handler->uartCircularBufferSize; i++ )
 	{
 		*p = '\200';
 		p++;
 	}
-	*config.uartCircularBuffer = 0;
 
 	for(i=0; i< STRING_BUFFER_SIZE; i++)
 	{
@@ -45,18 +42,35 @@ void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler)
 	/* Initialize UART communication */
 	F0cks_SIM808_UART_Send("AT\n\r");// Get first dummy answer
 	F0cks_Delay_ms(2000);
+	while( *handler->privateCircularBufferP == '\200')// Set correctly private pointer on circular buffer if offset
+	{
+		handler->privateCircularBufferP++;
+	}
 	F0cks_SIM808_UART_Send("AT\n\r");
 	while(F0cks_SIM808_Check_Ack(handler) != 1);
+	while( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CPIN: SIM PIN") != 1 )
+	{
+		F0cks_SIM808_Read_Circular_Buffer(handler);
+	}
 }
 
 /* Power OFF SIM808 using PWRKEY */
 void F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler)
 {
+	uint8_t i = 0;
+	uint8_t *pt = handler->uartCircularBuffer ;
+
 	/* Stop module with PWRKEY */
 	F0cks_SIM808_PWRKEY_Low();
 	F0cks_Delay_ms(2000);
 	F0cks_SIM808_PWRKEY_High();
 	F0cks_Delay_ms(500);
+
+	/* Purge circular buffer */
+	for(i=0; i<handler->uartCircularBufferSize; i++ )
+	{
+		*pt++ = '\200';
+	}
 }
 
 /* Read Circular buffer */
@@ -75,6 +89,10 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 
 	while(timeout <= 100)
 	{
+		if( *handler->privateCircularBufferP == '\0' )
+		{
+			handler->privateCircularBufferP = handler->uartCircularBuffer;
+		}
 		if( *handler->privateCircularBufferP != '\200' )
 		{
 			/* Reset timeout */
@@ -87,8 +105,7 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 			/* Do not store \n and \r */
 			if( *handler->privateCircularBufferP != '\n' &&
 					*handler->privateCircularBufferP != '\r' &&
-					*handler->privateCircularBufferP != 0xff &&
-					*handler->privateCircularBufferP != '\0' )
+					*handler->privateCircularBufferP != 0xff )
 			{
 				*p = *handler->privateCircularBufferP;
 				p++;
