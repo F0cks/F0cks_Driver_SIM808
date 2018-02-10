@@ -58,6 +58,11 @@ void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler)
 	while( *handler->privateCircularBufferP == '\200')// Set correctly private pointer on circular buffer if offset
 	{
 		handler->privateCircularBufferP++;
+		/* Reset pointer */
+		if( *handler->privateCircularBufferP == '\0' )
+		{
+			handler->privateCircularBufferP = handler->uartCircularBuffer;
+		}
 	}
 	F0cks_SIM808_UART_Send("AT\n\r");
 	while(F0cks_SIM808_Check_Ack(handler) != 1);
