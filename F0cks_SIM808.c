@@ -7,6 +7,9 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 	uint8_t i = 0;
 	uint8_t *p;
 
+	/* Battery */
+	handler->battery = (SIM808_BatteryTypeDef){0,0,0};
+
 	/* Get UART Circular Buffer data from user */
 	handler->uartCircularBuffer     = config.uartCircularBuffer;
 	handler->uartCircularBufferSize = config.uartCircularBufferSize;
@@ -65,11 +68,10 @@ void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler)
 		}
 	}
 	F0cks_SIM808_UART_Send("AT\n\r");
-	while(F0cks_SIM808_Check_Ack(handler) != 1);
-	while( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CPIN: SIM PIN") != 1 )
-	{
-		F0cks_SIM808_Read_Circular_Buffer(handler);
-	}
+	F0cks_Delay_ms(1000);
+	while(F0cks_SIM808_Parse_String(handler) != 1); // OK
+	while(F0cks_SIM808_Parse_String(handler) != 4); // +CPIN: SIM PIN
+	F0cks_SIM808_Battery_Update(handler);
 }
 
 /* Power OFF SIM808 using PWRKEY */
@@ -151,13 +153,13 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 	return 0;
 }
 
-/* Compare 2 strings */
+/* Compare 1 string with a pattern */
 int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2)
 {
 	char *s1 = str1;
 	char *s2 = str2;
 
-	/* While string is not fully parsed  */
+	/* Till 1 string is fully parsed  */
 	while( (*s1 != '\0') && (*s2 != '\0') )
 	{
 		/* If char are not the same */
@@ -168,69 +170,109 @@ int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2)
 		s1++; s2++;
 	}
 
-	if( *s1 == *s2 )
+	if( *--s1 == *--s2 )
 	{
-		/* Strings are the same */
+		/* String contains pattern */
 		return 1;
 	}
 	else
 	{
-		/* Strings are not the same */
+		/* String does not contain pattern */
 		return 0;
 	}
 }
 
-int8_t F0cks_SIM808_Check_Ack(SIM808_HandleTypeDef *handler)
-{
-	/* While there are words in buffer */
-	while( F0cks_SIM808_Read_Circular_Buffer(handler) != 0)
-	{
-		if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "OK") )
-		{
-			/* ACK OK received */
-			return 1;
-		}
-		else if ( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "NOK") )
-		{
-			/*ACK NOK received */
-			return 0;
-		}
-	}
-	/* No ACK received */
-	return -1;
-}
-
-int8_t F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler)
+/* Enable GSM */
+void F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler)
 {
 	/* Set PIN code */
 	F0cks_SIM808_UART_Send("AT+CPIN=\"");
 	F0cks_SIM808_UART_Send(handler->pinCode);
 	F0cks_SIM808_UART_Send("\"\n\r");
-	if( F0cks_SIM808_Check_Ack(handler) != 1 )
-	{
-		return -1;
-	}
-	while( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "SMS Ready") != 1 )
-	{
-		F0cks_SIM808_Read_Circular_Buffer(handler);
-	}
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	while( F0cks_SIM808_Parse_String(handler) != 5 ); // != SMS Ready
 
 	/* SMS Format */
 	F0cks_SIM808_UART_Send("AT+CMGF=1\n\r");
-	if( F0cks_SIM808_Check_Ack(handler) != 1 )
-	{
-		return -2;
-	}
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
 	F0cks_SIM808_UART_Send("AT+CSCS=\"GSM\"\n\r");
-	if( F0cks_SIM808_Check_Ack(handler) != 1 )
-	{
-		return -3;
-	}
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
 
 	/* Set white list */
 	F0cks_SIM808_UART_Send("AT+CWHITELIST=1\n\r");
-	while( F0cks_SIM808_Check_Ack(handler) != 1 );
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
 
-	return 1;
+/* Parse a string */
+int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
+{
+	/* Get string */
+	if(F0cks_SIM808_Read_Circular_Buffer(handler) == 0)
+	{
+		/* Nothing to parse */
+		return 0;
+	}
+
+	/* Parse string */
+	if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "OK") )
+	{
+		return 1;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "NOK") )
+	{
+		return 2;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CBC:") )
+	{
+		return 3;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CPIN: SIM PIN") )
+	{
+		return 4;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "SMS Ready") )
+	{
+		return 5;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "ERROR") )
+	{
+		return 6;
+	}
+	else
+	{
+		return -1;
+	}
+
+	return -2;
+}
+
+/* Update battery DATA in SIM808 handler */
+void F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler)
+{
+	char *p = handler->privateStringBuffer;
+	char tempo[5] = "";
+	char *t = tempo;
+	uint8_t i = 0;
+
+	F0cks_SIM808_UART_Send("AT+CBC\n\r");
+
+	while(F0cks_SIM808_Parse_String(handler) != 3);
+
+	// Example:	+CBC: 0,52,3821
+	p += 6;                                                 // Set on char '0'
+	handler->battery.status = (*p++ - '0');                 // Store '0' as (int) 0 and go to ','
+	while(*++p != ',')											                // Store in tempo '52'
+		*t++ = *p;
+	sscanf(tempo, "%d", (int *)&handler->battery.capacity);	// Store '52' as (int)
+	for(i=0;i<5;i++)																				// Clean tempo buffer
+		tempo[i] = '\0';
+	t = tempo;																							// Reset pointer
+	while(*++p != '\0')                                     // Store '3821' in tempo
+		*t++ = *p;
+	sscanf(tempo, "%d", (int *)&handler->battery.voltage);  // Store '3821' as (int)
+
+	while(F0cks_SIM808_Parse_String(handler) != 1);
+
 }
 
