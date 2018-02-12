@@ -276,3 +276,42 @@ void F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler)
 
 }
 
+/* Enable GPRS */
+void F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler)
+{
+	int8_t value = 0;
+
+	/* Network association */
+	F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
+
+	while(1)
+	{
+		value = F0cks_SIM808_Parse_String(handler);
+		if(value == 6) // == ERROR
+		{
+			F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
+			F0cks_Delay_ms(2000);
+		}
+		else if(value == 1) // == OK
+		{
+			break;
+		}
+	}
+
+	/* Configure bearer profile 1 */
+	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"APN\",\"");
+	F0cks_SIM808_UART_Send(handler->apn);
+	F0cks_SIM808_UART_Send("\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	/* Open GPRS context */
+	F0cks_SIM808_UART_Send("AT+SAPBR=1,1\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	/* Initialize HTTP Service */
+	F0cks_SIM808_UART_Send("AT+HTTPINIT\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+

@@ -51,6 +51,7 @@ int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
 void F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler);
 void F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler);
+void F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);
