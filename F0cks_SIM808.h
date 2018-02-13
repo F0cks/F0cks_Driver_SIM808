@@ -44,12 +44,9 @@ typedef struct
 }SIM808_HandleTypeDef;
 
 int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTypeDef config);
-void F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler);
-void F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler);
-int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
-int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
-void F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler);
-int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler);
+void   F0cks_SIM808_Power_ON(SIM808_HandleTypeDef *handler);
+void   F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler);
+void   F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message);

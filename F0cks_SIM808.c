@@ -1,6 +1,11 @@
 #include "F0cks_SIM808.h"
 #include "usart.h"
 
+/* Private functions */
+int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
+int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
+int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler);
+
 int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTypeDef config)
 {
 	int8_t error = 0;
@@ -93,6 +98,137 @@ void F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler)
 	}
 }
 
+/* Enable GSM */
+void F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler)
+{
+	/* Set PIN code */
+	F0cks_SIM808_UART_Send("AT+CPIN=\"");
+	F0cks_SIM808_UART_Send(handler->pinCode);
+	F0cks_SIM808_UART_Send("\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	while( F0cks_SIM808_Parse_String(handler) != 5 ); // != SMS Ready
+
+	/* SMS Format */
+	F0cks_SIM808_UART_Send("AT+CMGF=1\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	F0cks_SIM808_UART_Send("AT+CSCS=\"GSM\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	/* Set white list */
+	F0cks_SIM808_UART_Send("AT+CWHITELIST=1\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+
+/* Update battery DATA in SIM808 handler */
+void F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler)
+{
+	char *p = handler->privateStringBuffer;
+	char tempo[5] = "";
+	char *t = tempo;
+	uint8_t i = 0;
+
+	F0cks_SIM808_UART_Send("AT+CBC\n\r");
+
+	while(F0cks_SIM808_Parse_String(handler) != 3);
+
+	// Example:	+CBC: 0,52,3821
+	p += 6;                                                 // Set on char '0'
+	handler->battery.status = (*p++ - '0');                 // Store '0' as (int) 0 and go to ','
+	while(*++p != ',')											                // Store in tempo '52'
+		*t++ = *p;
+	sscanf(tempo, "%d", (int *)&handler->battery.capacity);	// Store '52' as (int)
+	for(i=0;i<5;i++)																				// Clean tempo buffer
+		tempo[i] = '\0';
+	t = tempo;																							// Reset pointer
+	while(*++p != '\0')                                     // Store '3821' in tempo
+		*t++ = *p;
+	sscanf(tempo, "%d", (int *)&handler->battery.voltage);  // Store '3821' as (int)
+
+	while(F0cks_SIM808_Parse_String(handler) != 1);
+
+}
+
+/* Enable GPRS */
+void F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler)
+{
+	int8_t value = 0;
+
+	/* Network association */
+	F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
+
+	while(1)
+	{
+		value = F0cks_SIM808_Parse_String(handler);
+		if(value == 2) // == ERROR
+		{
+			F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
+			F0cks_Delay_ms(2000);
+		}
+		else if(value == 1) // == OK
+		{
+			break;
+		}
+	}
+
+	/* Configure bearer profile 1 */
+	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"APN\",\"");
+	F0cks_SIM808_UART_Send(handler->apn);
+	F0cks_SIM808_UART_Send("\"\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	/* Open GPRS context */
+	F0cks_SIM808_UART_Send("AT+SAPBR=1,1\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	/* Initialize HTTP Service */
+	F0cks_SIM808_UART_Send("AT+HTTPINIT\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+
+/* Send SMS */
+int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message)
+{
+	int8_t value = 0;
+	char specialChar[2] = {(char)26, '\0'};
+
+	/* Enter phone number */
+	F0cks_SIM808_UART_Send("AT+CMGS=\"");
+	F0cks_SIM808_UART_Send(number);
+	F0cks_SIM808_UART_Send("\"\n\r");
+
+	/* Wait to get back hand */
+	while(1)
+	{
+		value = F0cks_SIM808_Parse_String(handler);
+		if(value == 2) // == ERROR
+		{
+			return -1;
+		}
+		else if(value == 6) // == >
+		{
+			break;
+		}
+	}
+
+	/* Enter message */
+	F0cks_SIM808_UART_Send(message);
+	F0cks_SIM808_UART_Send("\r\n");
+	/* Send CTRL+Z to end message */
+	F0cks_SIM808_UART_Send(specialChar);
+	/* Get Ack */
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	/* Delete read SMS */
+	F0cks_SIM808_UART_Send("AT+CMGDA=\"DEL SENT\"\r\n");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	return 0;
+}
+
+/* Private functions */
+
 /* Read Circular buffer */
 int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 {
@@ -139,6 +275,8 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 			if((currentChar == '\n' && lastChar == '\r') || (currentChar == ' ' && lastChar == '>') )
 			{
 				/* New string */
+				Debug_UART_Send(handler->privateStringBuffer);
+				Debug_UART_Send("\r\n");
 				return 1;
 			}
 		}
@@ -152,6 +290,49 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 
 	/* Timeout: No new string */
 	return 0;
+}
+
+/* Parse a string */
+int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
+{
+	/* Get string */
+	if(F0cks_SIM808_Read_Circular_Buffer(handler) == 0)
+	{
+		/* Nothing to parse */
+		return 0;
+	}
+
+	/* Parse string */
+	if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "OK") )
+	{
+		return 1;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "ERROR") )
+	{
+		return 2;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CBC:") )
+	{
+		return 3;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CPIN: SIM PIN") )
+	{
+		return 4;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "SMS Ready") )
+	{
+		return 5;
+	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "> ") )
+	{
+		return 6;
+	}
+	else
+	{
+		return -1;
+	}
+
+	return -2;
 }
 
 /* Compare 1 string with a pattern */
@@ -181,181 +362,5 @@ int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2)
 		/* String does not contain pattern */
 		return 0;
 	}
-}
-
-/* Enable GSM */
-void F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler)
-{
-	/* Set PIN code */
-	F0cks_SIM808_UART_Send("AT+CPIN=\"");
-	F0cks_SIM808_UART_Send(handler->pinCode);
-	F0cks_SIM808_UART_Send("\"\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-	while( F0cks_SIM808_Parse_String(handler) != 5 ); // != SMS Ready
-
-	/* SMS Format */
-	F0cks_SIM808_UART_Send("AT+CMGF=1\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-
-	F0cks_SIM808_UART_Send("AT+CSCS=\"GSM\"\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-
-	/* Set white list */
-	F0cks_SIM808_UART_Send("AT+CWHITELIST=1\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-}
-
-/* Parse a string */
-int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
-{
-	/* Get string */
-	if(F0cks_SIM808_Read_Circular_Buffer(handler) == 0)
-	{
-		/* Nothing to parse */
-		return 0;
-	}
-
-	/* Parse string */
-	if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "OK") )
-	{
-		return 1;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "NOK") )
-	{
-		return 2;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CBC:") )
-	{
-		return 3;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CPIN: SIM PIN") )
-	{
-		return 4;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "SMS Ready") )
-	{
-		return 5;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "ERROR") )
-	{
-		return 6;
-	}
-	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "> ") )
-	{
-		return 7;
-	}
-	else
-	{
-		return -1;
-	}
-
-	return -2;
-}
-
-/* Update battery DATA in SIM808 handler */
-void F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler)
-{
-	char *p = handler->privateStringBuffer;
-	char tempo[5] = "";
-	char *t = tempo;
-	uint8_t i = 0;
-
-	F0cks_SIM808_UART_Send("AT+CBC\n\r");
-
-	while(F0cks_SIM808_Parse_String(handler) != 3);
-
-	// Example:	+CBC: 0,52,3821
-	p += 6;                                                 // Set on char '0'
-	handler->battery.status = (*p++ - '0');                 // Store '0' as (int) 0 and go to ','
-	while(*++p != ',')											                // Store in tempo '52'
-		*t++ = *p;
-	sscanf(tempo, "%d", (int *)&handler->battery.capacity);	// Store '52' as (int)
-	for(i=0;i<5;i++)																				// Clean tempo buffer
-		tempo[i] = '\0';
-	t = tempo;																							// Reset pointer
-	while(*++p != '\0')                                     // Store '3821' in tempo
-		*t++ = *p;
-	sscanf(tempo, "%d", (int *)&handler->battery.voltage);  // Store '3821' as (int)
-
-	while(F0cks_SIM808_Parse_String(handler) != 1);
-
-}
-
-/* Enable GPRS */
-void F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler)
-{
-	int8_t value = 0;
-
-	/* Network association */
-	F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
-
-	while(1)
-	{
-		value = F0cks_SIM808_Parse_String(handler);
-		if(value == 6) // == ERROR
-		{
-			F0cks_SIM808_UART_Send("AT+CGATT=1\n\r");
-			F0cks_Delay_ms(2000);
-		}
-		else if(value == 1) // == OK
-		{
-			break;
-		}
-	}
-
-	/* Configure bearer profile 1 */
-	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-	F0cks_SIM808_UART_Send("AT+SAPBR=3,1,\"APN\",\"");
-	F0cks_SIM808_UART_Send(handler->apn);
-	F0cks_SIM808_UART_Send("\"\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-
-	/* Open GPRS context */
-	F0cks_SIM808_UART_Send("AT+SAPBR=1,1\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-
-	/* Initialize HTTP Service */
-	F0cks_SIM808_UART_Send("AT+HTTPINIT\n\r");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-}
-
-/* Send SMS */
-int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message)
-{
-	int8_t value = 0;
-	char specialChar[2] = {(char)26, '\0'};
-
-	/* Enter phone number */
-	F0cks_SIM808_UART_Send("AT+CMGS=\"");
-	F0cks_SIM808_UART_Send(number);
-	F0cks_SIM808_UART_Send("\"\n\r");
-
-	/* Wait to get back hand */
-	while(1)
-	{
-		value = F0cks_SIM808_Parse_String(handler);
-		if(value == 6) // == ERROR
-		{
-			return -1;
-		}
-		else if(value == 7) // == >
-		{
-			break;
-		}
-	}
-
-	/* Enter message */
-	F0cks_SIM808_UART_Send(message);
-	F0cks_SIM808_UART_Send("\r\n");
-	/* Send CTRL+Z to end message */
-	F0cks_SIM808_UART_Send(specialChar);
-	/* Get Ack */
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-	/* Delete read SMS */
-	F0cks_SIM808_UART_Send("AT+CMGDA=\"DEL SENT\"\r\n");
-	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
-
-	return 0;
 }
 
