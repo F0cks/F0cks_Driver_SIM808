@@ -9,6 +9,13 @@
 
 typedef struct
 {
+  uint16_t  errors;
+  uint16_t  requestOver;
+
+}SIM808_HttpTypeDef;
+
+typedef struct
+{
   uint8_t  status;
   uint16_t capacity;
   uint16_t voltage;
@@ -41,6 +48,8 @@ typedef struct
 
 	SIM808_BatteryTypeDef battery;
 
+	SIM808_HttpTypeDef		http;
+
 }SIM808_HandleTypeDef;
 
 int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTypeDef config);
@@ -52,6 +61,7 @@ void   F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message);
 void   F0cks_SIM808_GPS_Start(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler);
+void   F0cks_SIM808_HTTP_Head_Request(SIM808_HandleTypeDef *handler, char *url);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);

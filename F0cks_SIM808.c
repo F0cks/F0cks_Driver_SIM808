@@ -5,12 +5,16 @@
 int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2);
 int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler);
+void F0cks_SIM808_HTTP_Parse_StatusCode(SIM808_HandleTypeDef *handler);
 
 int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTypeDef config)
 {
 	int8_t error = 0;
 	uint8_t i = 0;
 	uint8_t *p;
+
+	/* HTTP */
+	handler->http = (SIM808_HttpTypeDef){0,1};
 
 	/* Battery */
 	handler->battery = (SIM808_BatteryTypeDef){0,0,0};
@@ -246,6 +250,32 @@ void F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler)
 	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
 }
 
+/* Send Head HTTP request */
+void F0cks_SIM808_HTTP_Head_Request(SIM808_HandleTypeDef *handler, char *url)
+{
+	/* Try to catch unsolicited statusCode*/
+	while(F0cks_SIM808_Parse_String(handler) != 0);
+
+	if(handler->http.requestOver == 1)
+	{
+		handler->http.requestOver = 0;
+
+		/* Set parameters for HTTP session */
+		F0cks_SIM808_UART_Send("AT+HTTPPARA=\"URL\",\"");
+		F0cks_SIM808_UART_Send(url);
+		F0cks_SIM808_UART_Send("\"\r\n");
+		while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+		/* Enable HTTPS function */
+		F0cks_SIM808_UART_Send("AT+HTTPSSL=1\r\n");
+		while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+		/* HEAD */
+		F0cks_SIM808_UART_Send("AT+HTTPACTION=2\r\n");
+		while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	}
+}
+
 /* Private functions */
 
 /* Read Circular buffer */
@@ -346,6 +376,11 @@ int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
 	{
 		return 6;
 	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+HTTPACTION:") )
+	{
+		F0cks_SIM808_HTTP_Parse_StatusCode(handler);
+		return 7;
+	}
 	else
 	{
 		return -1;
@@ -381,5 +416,26 @@ int8_t F0cks_SIM808_Compare_Strings(char *str1, char *str2)
 		/* String does not contain pattern */
 		return 0;
 	}
+}
+
+/* Send Head HTTP request */
+void F0cks_SIM808_HTTP_Parse_StatusCode(SIM808_HandleTypeDef *handler)
+{
+	//Example : +HTTPACTION: 2,200,0
+
+	char *p = handler->privateStringBuffer;
+	char tempo[3] = "";
+	char *t = tempo;
+
+	p += 15;           // Set on char '2'
+	while(*p++ != ',') // Store in tempo '200'
+		*t++ = *p;
+
+	if( !F0cks_SIM808_Compare_Strings(tempo, "200") )
+	{
+		handler->http.errors++;
+	}
+
+	handler->http.requestOver = 1;
 }
 
