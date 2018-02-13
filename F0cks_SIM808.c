@@ -136,6 +136,7 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 			handler->privateCircularBufferP++;
 
 			if(currentChar == '\n' && lastChar == '\r')
+			if((currentChar == '\n' && lastChar == '\r') || (currentChar == ' ' && lastChar == '>') )
 			{
 				/* New string */
 				return 1;
@@ -239,6 +240,10 @@ int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
 	{
 		return 6;
 	}
+	else if( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "> ") )
+	{
+		return 7;
+	}
 	else
 	{
 		return -1;
@@ -313,5 +318,44 @@ void F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler)
 	/* Initialize HTTP Service */
 	F0cks_SIM808_UART_Send("AT+HTTPINIT\n\r");
 	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+
+/* Send SMS */
+int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message)
+{
+	int8_t value = 0;
+	char specialChar[2] = {(char)26, '\0'};
+
+	/* Enter phone number */
+	F0cks_SIM808_UART_Send("AT+CMGS=\"");
+	F0cks_SIM808_UART_Send(number);
+	F0cks_SIM808_UART_Send("\"\n\r");
+
+	/* Wait to get back hand */
+	while(1)
+	{
+		value = F0cks_SIM808_Parse_String(handler);
+		if(value == 6) // == ERROR
+		{
+			return -1;
+		}
+		else if(value == 7) // == >
+		{
+			break;
+		}
+	}
+
+	/* Enter message */
+	F0cks_SIM808_UART_Send(message);
+	F0cks_SIM808_UART_Send("\r\n");
+	/* Send CTRL+Z to end message */
+	F0cks_SIM808_UART_Send(specialChar);
+	/* Get Ack */
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	/* Delete read SMS */
+	F0cks_SIM808_UART_Send("AT+CMGDA=\"DEL SENT\"\r\n");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	return 0;
 }
 
