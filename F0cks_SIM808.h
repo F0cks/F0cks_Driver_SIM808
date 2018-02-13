@@ -50,6 +50,8 @@ void   F0cks_SIM808_GSM_Start(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_Battery_Update(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_GPRS_Start(SIM808_HandleTypeDef *handler);
 int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *message);
+void   F0cks_SIM808_GPS_Start(SIM808_HandleTypeDef *handler);
+void   F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);

@@ -227,6 +227,25 @@ int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *
 	return 0;
 }
 
+/* Enable GPS */
+void F0cks_SIM808_GPS_Start(SIM808_HandleTypeDef *handler)
+{
+	/* Turn on  GNSS */
+	F0cks_SIM808_UART_Send("AT+CGNSPWR=1\r\n");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+	/* Define the last NMEA sentence that parsed */
+	F0cks_SIM808_UART_Send("AT+CGNSSEQ=\"RMC\"\r\n");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+
+/* Disable GPS */
+void F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler)
+{
+	/* Turn off GNSS */
+	F0cks_SIM808_UART_Send("AT+CGNSPWR=0\n\r");
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+}
+
 /* Private functions */
 
 /* Read Circular buffer */
