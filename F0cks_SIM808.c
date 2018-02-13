@@ -1,5 +1,5 @@
+#include <stdio.h>
 #include "F0cks_SIM808.h"
-#include "usart.h"
 
 /* Private functions */
 int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
@@ -324,8 +324,6 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 			if((currentChar == '\n' && lastChar == '\r') || (currentChar == ' ' && lastChar == '>') )
 			{
 				/* New string */
-				Debug_UART_Send(handler->privateStringBuffer);
-				Debug_UART_Send("\r\n");
 				return 1;
 			}
 		}
