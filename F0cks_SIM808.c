@@ -13,6 +13,9 @@ int8_t F0cks_SIM808_Init( SIM808_HandleTypeDef *handler, SIM808_ConfigurationTyp
 	uint8_t i = 0;
 	uint8_t *p;
 
+	/* GPS */
+	handler->gps = (SIM808_GpsTypeDef){0,{},{},{},{},{}};
+
 	/* HTTP */
 	handler->http = (SIM808_HttpTypeDef){0,1};
 
@@ -276,6 +279,63 @@ void F0cks_SIM808_HTTP_Head_Request(SIM808_HandleTypeDef *handler, char *url)
 	}
 }
 
+int8_t F0cks_SIM808_GPS_Update(SIM808_HandleTypeDef *handler)
+{
+	char *p = handler->privateStringBuffer;
+	char *pt = handler->gps.utcDateTime;
+	uint8_t i = 0;
+
+	F0cks_SIM808_UART_Send("AT+CGNSINF\r\n");
+	while( F0cks_SIM808_Parse_String(handler) != 8 ); // != +CGNSINF:
+
+	// Example: +CGNSINF: 1,0,19800105235952.000,,,,0.00,0.0,0,,,,,,7,0,,,45,,
+	// Example: +CGNSINF: 1,1,20180216085533.000,45.646272,5.027402,254.300,0.02,336.1,1,,1.0,1.4,0.9,,8,8,,,45,,
+
+	p += 10;                                                // Set on char '1'
+	if( *p++ != '1' )																				// If GPS run status = 0 then set on ','
+		return -1;																						// GPS not ready
+	if( *++p != '1' )																				// Set on '1', if Fix status = 0
+		return -2;																						// GPS not fixed
+
+	for(i=0;i<15;i++)
+		handler->gps.utcDateTime[i] = '\0';
+	p++;                                                 // Set on ','
+	while(*++p != '.')											                // Store '20180216085533' in gps.utcDateTime
+		*pt++ = *p;
+
+	for(i=0;i<10;i++)
+		handler->gps.latitude[i] = '\0';
+	pt = handler->gps.latitude;
+	while(*++p != ',');																										// Set on ','
+	while(*++p != ',')											                // Store '45.646272' in gps.latitude
+		*pt++ = *p;
+
+	for(i=0;i<11;i++)
+		handler->gps.longitude[i] = '\0';
+	pt = handler->gps.longitude;														// Set on '5'
+	while(*++p != ',')											                // Store '5.027402' in gps.longitude
+		*pt++ = *p;
+
+	for(i=0;i<8;i++)
+		handler->gps.altitude[i] = '\0';
+	pt = handler->gps.altitude;                             // Set on '2'
+	while(*++p != '.')											                // Store '254' in gps.altitude
+		*pt++ = *p;
+
+	for(i=0;i<3;i++)
+		handler->gps.speed[i] = '\0';
+	pt = handler->gps.speed;
+	while(*++p != ',');																			// Set on '2'
+	while(*++p != '.')											                // Store '254' in gps.altitude
+		*pt++ = *p;
+
+	handler->gps.newData = 1;
+
+	while( F0cks_SIM808_Parse_String(handler) != 1 ); // != OK
+
+	return 0;
+}
+
 /* Private functions */
 
 /* Read Circular buffer */
@@ -378,6 +438,10 @@ int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler)
 	{
 		F0cks_SIM808_HTTP_Parse_StatusCode(handler);
 		return 7;
+	}
+	else if ( F0cks_SIM808_Compare_Strings(handler->privateStringBuffer, "+CGNSINF:") )
+	{
+		return 8;
 	}
 	else
 	{

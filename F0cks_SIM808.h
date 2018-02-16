@@ -9,6 +9,17 @@
 
 typedef struct
 {
+	uint8_t newData;
+	char	utcDateTime[15];
+	char	latitude[10];
+	char	longitude[11];
+	char	altitude[8];
+	char	speed[3];
+
+}SIM808_GpsTypeDef;
+
+typedef struct
+{
   uint16_t  errors;
   uint16_t  requestOver;
 
@@ -47,8 +58,8 @@ typedef struct
 	uint8_t  ackValue;
 
 	SIM808_BatteryTypeDef battery;
-
 	SIM808_HttpTypeDef		http;
+	SIM808_GpsTypeDef			gps;
 
 }SIM808_HandleTypeDef;
 
@@ -62,6 +73,7 @@ int8_t F0cks_SIM808_send_SMS(SIM808_HandleTypeDef *handler, char *number, char *
 void   F0cks_SIM808_GPS_Start(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_HTTP_Head_Request(SIM808_HandleTypeDef *handler, char *url);
+int8_t F0cks_SIM808_GPS_Update(SIM808_HandleTypeDef *handler);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);
