@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "F0cks_SIM808.h"
+#include "usart.h"
 
 /* Private functions */
 int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler);
@@ -103,6 +104,15 @@ void F0cks_SIM808_Power_OFF(SIM808_HandleTypeDef *handler)
 	{
 		*pt++ = '\200';
 	}
+	/* GPS */
+	handler->gps = (SIM808_GpsTypeDef){0,{},{},{},{},{}};
+
+	/* HTTP */
+	handler->http = (SIM808_HttpTypeDef){0,1};
+
+	/* Battery */
+	handler->battery = (SIM808_BatteryTypeDef){0,0,0};
+
 }
 
 /* Enable GSM */
@@ -293,9 +303,16 @@ int8_t F0cks_SIM808_GPS_Update(SIM808_HandleTypeDef *handler)
 
 	p += 10;                                                // Set on char '1'
 	if( *p++ != '1' )																				// If GPS run status = 0 then set on ','
+	{
+		while( F0cks_SIM808_Parse_String(handler) != 1 );			// != OK
 		return -1;																						// GPS not ready
+	}
+
 	if( *++p != '1' )																				// Set on '1', if Fix status = 0
+	{
+		while( F0cks_SIM808_Parse_String(handler) != 1 );			// != OK
 		return -2;																						// GPS not fixed
+	}
 
 	for(i=0;i<15;i++)
 		handler->gps.utcDateTime[i] = '\0';
@@ -380,10 +397,11 @@ int8_t F0cks_SIM808_Read_Circular_Buffer(SIM808_HandleTypeDef *handler)
 			*handler->privateCircularBufferP = '\200';
 			handler->privateCircularBufferP++;
 
-			if(currentChar == '\n' && lastChar == '\r')
 			if((currentChar == '\n' && lastChar == '\r') || (currentChar == ' ' && lastChar == '>') )
 			{
 				/* New string */
+				Debug_UART_Send(handler->privateStringBuffer);
+				Debug_UART_Send("\r\n");
 				return 1;
 			}
 		}

@@ -74,6 +74,7 @@ void   F0cks_SIM808_GPS_Start(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_GPS_Stop(SIM808_HandleTypeDef *handler);
 void   F0cks_SIM808_HTTP_Head_Request(SIM808_HandleTypeDef *handler, char *url);
 int8_t F0cks_SIM808_GPS_Update(SIM808_HandleTypeDef *handler);
+int8_t F0cks_SIM808_Parse_String(SIM808_HandleTypeDef *handler);
 
 /* Functions to implement */
 void F0cks_Delay_ms(uint32_t ms);
